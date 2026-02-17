@@ -18,6 +18,11 @@ class PController:
         assert u_min < u_max, "u_min should be less than u_max"
         # Initialize variables here
         ######### Your code starts here #########
+        assert u_min < u_max, "u_min should be less than u_max"
+        self.kP = kP
+        self.u_min = u_min
+        self.u_max = u_max
+        self.t_prev = time()
 
         ######### Your code ends here #########
 
@@ -28,6 +33,20 @@ class PController:
 
         # Compute control action here
         ######### Your code starts here #########
+        dt = t - self.t_prev
+        if dt <= 1e-6:
+        	return 0
+        	
+        u = self.kP * err
+        
+        # clamp
+        if u > self.u_max:
+        	u = self.u_max
+        elif u < self.u_min:
+        	u = self.u_min
+        	
+        self.t_prev = t
+        return u
 
         ######### Your code ends here #########
 
@@ -43,16 +62,36 @@ class PDController:
         assert u_min < u_max, "u_min should be less than u_max"
         # Initialize variables here
         ######### Your code starts here #########
+        assert u_min < u_max, "u_min should be less than u_max"
+        self.kP = kP
+        self.kD = kD
+        self.u_min = u_min
+        self.u_max = u_max
+        self.t_prev = time()
+        self.err_prev = 0.0
 
         ######### Your code ends here #########
 
     def control(self, err, t):
         dt = t - self.t_prev
+        de = err - self.err_prev
         if dt <= 1e-6:
             return 0
 
         # Compute control action here
         ######### Your code starts here #########
+        value = (self.kP * err + (self.kD * de/dt))
+        
+        
+        # clamp
+        if value > self.u_max:
+        	value = self.u_max
+        elif value < self.u_min:
+        	value = self.u_min
+        	
+        self.err_prev = err
+        self.t_prev = t
+        return value
 
         ######### Your code ends here #########
 
@@ -68,6 +107,12 @@ class RobotController:
 
         # Define PD controller for wall-following here
         ######### Your code starts here #########
+        self.kP = 1.5
+        self.kD = 0.1
+        self.u_min = -1.0
+        self.u_max = 1.0
+        self.controller = PDController(self.kP, self.kD, self.u_min, self.u_max)
+        self.v0 = 0.15
 
         ######### Your code ends here #########
 
@@ -75,10 +120,12 @@ class RobotController:
         self.ir_distance = None
 
     def robot_laserscan_callback(self, lscan: LaserScan):
-        left = lscan.ranges[80:100]
+        left = lscan.ranges[60:100]
         left = [x for x in left if x != inf]
         if len(left) > 0:
-            self.ir_distance = sum(left) / len(left)
+            self.ir_distance = min(left)
+        else:
+            self.ir_distance = 2.0
 
     def control_loop(self):
 
@@ -95,6 +142,12 @@ class RobotController:
 
             # using PD controller, compute and send motor commands
             ######### Your code starts here #########
+            # Change this line in your control_loop:
+            err = self.ir_distance - self.desired_distance
+            u = self.controller.control(err, time())
+            
+            ctrl_msg.linear.x = self.v0
+            ctrl_msg.angular.z = u
 
             ######### Your code ends here #########
 
